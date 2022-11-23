@@ -1,4 +1,5 @@
-FROM alpine:3.15
+ARG DOTNET_VERSION
+FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}-alpine
 
 ARG SONAR_SCANNER_HOME=/opt/sonar-scanner
 ARG SONAR_SCANNER_VERSION
