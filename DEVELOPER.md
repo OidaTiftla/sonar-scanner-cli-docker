@@ -13,6 +13,8 @@ docker build --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=4.7.0.2747
     && docker push oidatiftla/sonarscanner:net5.0
 docker build --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=4.7.0.2747-linux --build-arg DOTNET_VERSION=3.1 --tag oidatiftla/sonarscanner:net3.1 4 \
     && docker push oidatiftla/sonarscanner:net3.1
+docker tag oidatiftla/sonarscanner:net7.0 oidatiftla/sonarscanner \
+    && docker push oidatiftla/sonarscanner
 ```
 
 # How to run the Docker image
