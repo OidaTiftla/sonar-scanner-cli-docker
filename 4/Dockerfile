@@ -1,6 +1,9 @@
 ARG DOTNET_VERSION
 FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}-alpine
 
+ENV PATH=${PATH}:/root/.dotnet/tools
+RUN dotnet tool install --global dotnet-sonarscanner
+
 ARG SONAR_SCANNER_HOME=/opt/sonar-scanner
 ARG SONAR_SCANNER_VERSION
 ARG UID=1000
