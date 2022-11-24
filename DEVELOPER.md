@@ -2,16 +2,16 @@
 
 Each major version of the scanner gets its own image in a specific directory.
 
-Eg. to build sonar-scanner 4.x under the image name `scanner-cli` (get the latest version of the cli `4.7.0.2747-linux` from [SonarScanner](https://docs.sonarqube.org/latest/analysis/scan/sonarscanner/)):
+Eg. to build sonar-scanner 4.x under the image name `scanner-cli` (get the latest version of the cli `4.7.0.2747` from [SonarScanner](https://docs.sonarqube.org/latest/analysis/scan/sonarscanner/)):
 
 ```
-docker build --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=4.7.0.2747-linux --build-arg DOTNET_VERSION=7.0 --tag oidatiftla/sonarscanner:net7.0 4 \
+docker build --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=4.7.0.2747 --build-arg DOTNET_SONAR_SCANNER_VERSION=5.8.0 --build-arg DOTNET_VERSION=7.0 --tag oidatiftla/sonarscanner:net7.0 4 \
     && docker push oidatiftla/sonarscanner:net7.0
-docker build --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=4.7.0.2747-linux --build-arg DOTNET_VERSION=6.0 --tag oidatiftla/sonarscanner:net6.0 4 \
+docker build --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=4.7.0.2747 --build-arg DOTNET_SONAR_SCANNER_VERSION=5.8.0 --build-arg DOTNET_VERSION=6.0 --tag oidatiftla/sonarscanner:net6.0 4 \
     && docker push oidatiftla/sonarscanner:net6.0
-docker build --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=4.7.0.2747-linux --build-arg DOTNET_VERSION=5.0 --tag oidatiftla/sonarscanner:net5.0 4 \
+docker build --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=4.7.0.2747 --build-arg DOTNET_SONAR_SCANNER_VERSION=5.8.0 --build-arg DOTNET_VERSION=5.0 --tag oidatiftla/sonarscanner:net5.0 4 \
     && docker push oidatiftla/sonarscanner:net5.0
-docker build --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=4.7.0.2747-linux --build-arg DOTNET_VERSION=3.1 --tag oidatiftla/sonarscanner:net3.1 4 \
+docker build --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=4.7.0.2747 --build-arg DOTNET_SONAR_SCANNER_VERSION=5.8.0 --build-arg DOTNET_VERSION=3.1 --tag oidatiftla/sonarscanner:net3.1 4 \
     && docker push oidatiftla/sonarscanner:net3.1
 docker tag oidatiftla/sonarscanner:net7.0 oidatiftla/sonarscanner \
     && docker push oidatiftla/sonarscanner
