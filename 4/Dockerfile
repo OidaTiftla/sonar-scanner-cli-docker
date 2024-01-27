@@ -5,6 +5,8 @@ ENV PATH=${PATH}:/root/.dotnet/tools
 ARG DOTNET_SONAR_SCANNER_VERSION
 RUN dotnet tool install --global dotnet-sonarscanner --version ${DOTNET_SONAR_SCANNER_VERSION}
 
+LABEL org.opencontainers.image.url=https://github.com/SonarSource/sonar-scanner-cli-docker
+
 ARG SONAR_SCANNER_HOME=/opt/sonar-scanner
 ARG SONAR_SCANNER_VERSION
 ARG UID=1000
