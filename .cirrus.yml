@@ -1,0 +1,92 @@
+env:
+  # see https://github.com/SonarSource/re-terraform-aws-vault/blob/master/orders/bubble-cfamily.yaml
+  CIRRUS_VAULT_URL: https://vault.sonar.build:8200
+  CIRRUS_VAULT_AUTH_PATH: jwt-cirrusci
+  CIRRUS_VAULT_ROLE: cirrusci-${CIRRUS_REPO_OWNER}-${CIRRUS_REPO_NAME}
+
+  DOCKER_USERNAME: VAULT[development/kv/data/docker/sonardockerrw data.username]
+  DOCKER_PASSWORD: VAULT[development/kv/data/docker/sonardockerrw data.access_token_rwd]
+  
+  # Mend scan global configuration  
+  WS_PRODUCTNAME: SonarSource/sonar-scanner-cli-docker
+  MEND_API_KEY: VAULT[development/kv/data/mend data.apikey]
+  WS_WSS_URL: https://saas-eu.whitesourcesoftware.com/agent
+
+  # Staging image configuration
+  STAGING_IMAGE_NAME: sonarsource/sonarqube
+  CURRENT_MAJOR_VERSION: "5"
+  CURRENT_TAG: scanner-5.0.1
+
+vm_instance_template: &VM_TEMPLATE
+  experimental: true # see https://github.com/cirruslabs/cirrus-ci-docs/issues/1051
+  image: docker-builder-v*
+  type: t2.small
+  region: eu-central-1
+  subnet_id: ${CIRRUS_AWS_SUBNET}
+  disk: 10
+  cpu: 4
+  memory: 16G
+
+multi_arch_build_task: 
+  ec2_instance:
+    <<: *VM_TEMPLATE
+  login_script:
+    - docker login --username $DOCKER_USERNAME --password $DOCKER_PASSWORD
+  setup_script:
+    - docker run -t --rm --privileged tonistiigi/binfmt --install all
+    - docker buildx create --name multibuilder
+    - docker buildx use multibuilder
+    - docker buildx inspect --bootstrap
+  build_script:
+    - echo "Build the ${STAGING_IMAGE_NAME}:${CURRENT_TAG} image supporting two architectures, linux/amd64 and linux/arm64"
+    - docker buildx build --platform linux/amd64,linux/arm64 --tag "${STAGING_IMAGE_NAME}:${CURRENT_TAG}" --push "${CURRENT_MAJOR_VERSION}"
+
+private_scan_task:
+  env:
+    platform: amd64
+  ec2_instance:
+    <<: *VM_TEMPLATE
+  login_script:
+    - docker login --username $DOCKER_USERNAME --password $DOCKER_PASSWORD
+  setup_script:
+    - apt-get remove -y unattended-upgrades
+    - apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre
+    - curl -sSL https://unified-agent.s3.amazonaws.com/wss-unified-agent.jar -o wss-unified-agent.jar
+    - echo "docker.includes=${CURRENT_TAG}" >> .cirrus/wss-unified-agent.config
+  scan_script:
+    - echo "Scan the ${STAGING_IMAGE_NAME}:${CURRENT_TAG} image supporting linux/${platform}"
+    - docker pull --platform linux/${platform} "${STAGING_IMAGE_NAME}:${CURRENT_TAG}"
+    - java -jar wss-unified-agent.jar -c .cirrus/wss-unified-agent.config -apiKey $MEND_API_KEY -product ${WS_PRODUCTNAME} -project ${STAGING_IMAGE_NAME}:${CURRENT_TAG} -wss.url ${WS_WSS_URL} -docker.scanImages true
+depends_on: multi_arch_build
+
+public_scan_task: 
+  only_if: $CIRRUS_CRON == 'nightly-mend-scan'
+  env:
+    PUBLIC_IMAGE_NAME: sonarsource/sonar-scanner-cli
+    TAG: latest
+  ec2_instance:
+    <<: *VM_TEMPLATE
+  setup_script:
+    - apt-get remove -y unattended-upgrades
+    - apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre
+    - curl -sSL https://unified-agent.s3.amazonaws.com/wss-unified-agent.jar -o wss-unified-agent.jar
+    - echo "docker.includes=${TAG}" >> .cirrus/wss-unified-agent.config
+  scan_script:
+    - echo "Scan the ${PUBLIC_IMAGE_NAME}:${TAG} image"
+    - docker pull "${PUBLIC_IMAGE_NAME}:${TAG}"
+    - java -jar wss-unified-agent.jar -c .cirrus/wss-unified-agent.config -apiKey $MEND_API_KEY -product ${WS_PRODUCTNAME} -project ${PUBLIC_IMAGE_NAME}:${TAG} -wss.url ${WS_WSS_URL} -docker.scanImages true
+
+multi_arch_test_docker_builder:
+  env:
+    matrix:
+      CIRRUS_ARCH: "arm64"
+      CIRRUS_ARCH: "amd64"
+  login_script:
+    - docker login --username $DOCKER_USERNAME --password $DOCKER_PASSWORD
+  test_script:
+    - apt-get update && apt-get install -qy bats
+    - echo "Checking out the sonar-scanning-examples repository"
+    - git clone https://github.com/SonarSource/sonar-scanning-examples.git target_repository
+    - echo "Test the ${STAGING_IMAGE_NAME}:${CURRENT_TAG} image supporting linux/${CIRRUS_ARCH}"
+    - TEST_IMAGE="${STAGING_IMAGE_NAME}:${CURRENT_TAG}" bats --tap test
+  depends_on: multi_arch_build
