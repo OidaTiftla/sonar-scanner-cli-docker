@@ -11,11 +11,7 @@ docker build --pull --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=5.0
     && docker push oidatiftla/sonarscanner:net7.0
 docker build --pull --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=5.0.1.3006 --build-arg DOTNET_SONAR_SCANNER_VERSION=6.2.0 --build-arg DOTNET_VERSION=6.0 --tag oidatiftla/sonarscanner:net6.0 -f 5/Dockerfile 5 \
     && docker push oidatiftla/sonarscanner:net6.0
-docker build --pull --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=5.0.1.3006 --build-arg DOTNET_SONAR_SCANNER_VERSION=6.2.0 --build-arg DOTNET_VERSION=5.0 --tag oidatiftla/sonarscanner:net5.0 -f 5/Dockerfile 5 \
-    && docker push oidatiftla/sonarscanner:net5.0
-docker build --pull --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=5.0.1.3006 --build-arg DOTNET_SONAR_SCANNER_VERSION=6.2.0 --build-arg DOTNET_VERSION=3.1 --tag oidatiftla/sonarscanner:net3.1 -f 5/Dockerfile 5 \
-    && docker push oidatiftla/sonarscanner:net3.1
-docker tag oidatiftla/sonarscanner:net7.0 oidatiftla/sonarscanner \
+docker tag oidatiftla/sonarscanner:net8.0 oidatiftla/sonarscanner \
     && docker push oidatiftla/sonarscanner
 ```
 
