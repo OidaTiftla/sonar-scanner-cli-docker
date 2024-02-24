@@ -44,8 +44,8 @@ RUN groupadd --system --gid 1000 scanner-cli && \
     unzip sonar-scanner-cli.zip && \
     rm sonar-scanner-cli.zip sonar-scanner-cli.zip.asc && \
     mv sonar-scanner-${SONAR_SCANNER_VERSION} ${SONAR_SCANNER_HOME} && \
-    pip3 install --no-cache-dir --upgrade pip && \
-    pip3 install --no-cache-dir pylint && \
+    pip3 install --no-cache-dir --upgrade pip --break-system-packages && \
+    pip3 install --no-cache-dir pylint --break-system-packages && \
     mkdir -p "${SRC_PATH}" "${SONAR_USER_HOME}" "${SONAR_USER_HOME}/cache" && \
     chmod -R 555 "${SONAR_SCANNER_HOME}" "${SRC_PATH}" && \
     chmod -R 777 "${SRC_PATH}" "${SONAR_USER_HOME}" && \
