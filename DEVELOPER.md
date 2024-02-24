@@ -5,6 +5,8 @@ Each major scanner version gets its image in a specific directory.
 E.g., to build sonar-scanner 5.x under the image name `scanner-cli` (get the latest version of the cli `5.0.1.3006` from [SonarScanner](https://docs.sonarqube.org/latest/analysis/scan/sonarscanner/)):
 
 ```bash
+docker build --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=5.0.1.3006 --build-arg DOTNET_SONAR_SCANNER_VERSION=6.2.0 --build-arg DOTNET_VERSION=8.0 --tag oidatiftla/sonarscanner:net8.0 -f 5/Dockerfile 5 \
+    && docker push oidatiftla/sonarscanner:net8.0
 docker build --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=5.0.1.3006 --build-arg DOTNET_SONAR_SCANNER_VERSION=6.2.0 --build-arg DOTNET_VERSION=7.0 --tag oidatiftla/sonarscanner:net7.0 -f 5/Dockerfile 5 \
     && docker push oidatiftla/sonarscanner:net7.0
 docker build --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=5.0.1.3006 --build-arg DOTNET_SONAR_SCANNER_VERSION=6.2.0 --build-arg DOTNET_VERSION=6.0 --tag oidatiftla/sonarscanner:net6.0 -f 5/Dockerfile 5 \
