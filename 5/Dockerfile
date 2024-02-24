@@ -1,8 +1,5 @@
 ARG DOTNET_VERSION
-FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}-alpine
-
-RUN apk add --no-cache bash && \
-    rm -rf /var/cache/apk/*
+FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}
 
 ENV PATH=${PATH}:/root/.dotnet/tools
 ARG DOTNET_SONAR_SCANNER_VERSION=6.2.0
