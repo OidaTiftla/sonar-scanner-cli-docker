@@ -13,7 +13,7 @@ LABEL org.opencontainers.image.url=https://github.com/SonarSource/sonar-scanner-
 ARG SONAR_SCANNER_HOME=/opt/sonar-scanner
 ARG SONAR_SCANNER_VERSION=5.0.1.3006
 ARG NODE_MAJOR=18
-ENV JAVA_HOME=/opt/java/openjdk \
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
     HOME=/tmp \
     XDG_CONFIG_HOME=/tmp \
     SONAR_SCANNER_HOME=${SONAR_SCANNER_HOME} \
@@ -35,7 +35,7 @@ RUN groupadd --system --gid 1000 scanner-cli && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
     apt-get -qqy update && \
-    apt-get --no-install-recommends -qqy install git unzip wget bash fonts-dejavu python3 python3-pip shellcheck nodejs build-essential locales && \
+    apt-get --no-install-recommends -qqy install git unzip wget bash fonts-dejavu python3 python3-pip shellcheck nodejs openjdk-17-jre build-essential locales && \
     locale-gen en_US.UTF-8 && \
     curl -fsSL -o /opt/sonar-scanner-cli.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}.zip && \
     curl -fsSL -o /opt/sonar-scanner-cli.zip.asc https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}.zip.asc && \
