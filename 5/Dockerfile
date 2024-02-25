@@ -1,9 +1,11 @@
 ARG DOTNET_VERSION
 FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}
 
-ENV PATH=${PATH}:/root/.dotnet/tools
+ENV PATH=${PATH}:/.dotnet/tools
 ARG DOTNET_SONAR_SCANNER_VERSION=6.2.0
-RUN dotnet tool install --global dotnet-sonarscanner --version ${DOTNET_SONAR_SCANNER_VERSION}
+RUN mkdir -p /.dotnet/tools \
+    && dotnet tool install --tool-path /.dotnet/tools dotnet-sonarscanner --version ${DOTNET_SONAR_SCANNER_VERSION} \
+    && chmod -R a+r /.dotnet/tools
 
 LABEL org.opencontainers.image.url=https://github.com/SonarSource/sonar-scanner-cli-docker
 
