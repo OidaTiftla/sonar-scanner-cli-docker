@@ -13,12 +13,12 @@ LABEL org.opencontainers.image.url=https://github.com/SonarSource/sonar-scanner-
 ARG SONAR_SCANNER_HOME=/opt/sonar-scanner
 ARG SONAR_SCANNER_VERSION=5.0.1.3006
 ARG NODE_MAJOR=18
-ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+ENV JAVA_HOME=/opt/openjdk-17 \
     HOME=/tmp \
     XDG_CONFIG_HOME=/tmp \
     SONAR_SCANNER_HOME=${SONAR_SCANNER_HOME} \
     SONAR_USER_HOME=${SONAR_SCANNER_HOME}/.sonar \
-    PATH=${SONAR_SCANNER_HOME}/bin:${PATH} \
+    PATH=${SONAR_SCANNER_HOME}/bin:${PATH}:$JAVA_HOME/bin \
     NODE_PATH=/usr/lib/node_modules \
     SRC_PATH=/usr/src \
     LANG=en_US.UTF-8 \
@@ -35,8 +35,12 @@ RUN groupadd --system --gid 1000 scanner-cli && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
     apt-get -qqy update && \
-    apt-get --no-install-recommends -qqy install git unzip wget bash fonts-dejavu python3 python3-pip shellcheck nodejs openjdk-17-jre build-essential locales && \
+    apt-get --no-install-recommends -qqy install git unzip wget bash fonts-dejavu python3 python3-pip shellcheck nodejs build-essential locales && \
     locale-gen en_US.UTF-8 && \
+    wget https://download.java.net/java/GA/jdk17.0.2/dfd4a8d0985749f896bed50d7138ee7f/8/GPL/openjdk-17.0.2_linux-x64_bin.tar.gz && \
+    tar xvf openjdk-17.0.2_linux-x64_bin.tar.gz && \
+    rm openjdk-17.0.2_linux-x64_bin.tar.gz && \
+    mv jdk-17*/ /opt/openjdk-17 && \
     curl -fsSL -o /opt/sonar-scanner-cli.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}.zip && \
     curl -fsSL -o /opt/sonar-scanner-cli.zip.asc https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}.zip.asc && \
     for server in $(shuf -e hkps://keys.openpgp.org \
