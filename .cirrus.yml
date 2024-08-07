@@ -4,18 +4,16 @@ env:
   CIRRUS_VAULT_AUTH_PATH: jwt-cirrusci
   CIRRUS_VAULT_ROLE: cirrusci-${CIRRUS_REPO_OWNER}-${CIRRUS_REPO_NAME}
 
-  DOCKER_USERNAME: VAULT[development/kv/data/docker/sonardockerrw data.username]
-  DOCKER_PASSWORD: VAULT[development/kv/data/docker/sonardockerrw data.access_token_rwd]
-  
-  # Mend scan global configuration  
-  WS_PRODUCTNAME: SonarSource/sonar-scanner-cli-docker
+  ARTIFACTORY_DEPLOY_USERNAME: VAULT[development/artifactory/token/${CIRRUS_REPO_OWNER}-${CIRRUS_REPO_NAME}-docker-release username]
+  ARTIFACTORY_DEPLOY_PASSWORD: VAULT[development/artifactory/token/${CIRRUS_REPO_OWNER}-${CIRRUS_REPO_NAME}-docker-release access_token]
+
+  # Mend scan global configuration
   MEND_API_KEY: VAULT[development/kv/data/mend data.apikey]
-  WS_WSS_URL: https://saas-eu.whitesourcesoftware.com/agent
 
   # Staging image configuration
-  STAGING_IMAGE_NAME: sonarsource/sonarqube
-  CURRENT_MAJOR_VERSION: "5"
-  CURRENT_TAG: scanner-5.0.1
+  DOCKER_REPOX_BUILDS_REGISTRY: repox-sonarsource-docker-builds.jfrog.io
+  DOCKER_IMAGE: "sonarsource/sonar-scanner-cli"
+  STAGING_IMAGE_TAG: "${DOCKER_REPOX_BUILDS_REGISTRY}/${DOCKER_IMAGE}:${CI_BUILD_NUMBER}"
 
 vm_instance_template: &VM_TEMPLATE
   experimental: true # see https://github.com/cirruslabs/cirrus-ci-docs/issues/1051
@@ -27,39 +25,40 @@ vm_instance_template: &VM_TEMPLATE
   cpu: 4
   memory: 16G
 
-multi_arch_build_task: 
-  ec2_instance:
-    <<: *VM_TEMPLATE
-  login_script:
-    - docker login --username $DOCKER_USERNAME --password $DOCKER_PASSWORD
-  setup_script:
-    - docker run -t --rm --privileged tonistiigi/binfmt --install all
-    - docker buildx create --name multibuilder
-    - docker buildx use multibuilder
-    - docker buildx inspect --bootstrap
-  build_script:
-    - echo "Build the ${STAGING_IMAGE_NAME}:${CURRENT_TAG} image supporting two architectures, linux/amd64 and linux/arm64"
-    - docker buildx build --platform linux/amd64,linux/arm64 --tag "${STAGING_IMAGE_NAME}:${CURRENT_TAG}" --push "${CURRENT_MAJOR_VERSION}"
+only_sonarsource_qa: &ONLY_SONARSOURCE_QA
+  only_if: $CIRRUS_USER_COLLABORATOR == 'true' && $CIRRUS_TAG == "" && ($CIRRUS_PR != "" || $CIRRUS_BRANCH == $CIRRUS_DEFAULT_BRANCH || $CIRRUS_BRANCH =~ "branch-.*" || $CIRRUS_BUILD_SOURCE == 'api' )
 
-private_scan_task:
-  env:
-    platform: amd64
+build_task:
+  <<: *ONLY_SONARSOURCE_QA
   ec2_instance:
     <<: *VM_TEMPLATE
   login_script:
-    - docker login --username $DOCKER_USERNAME --password $DOCKER_PASSWORD
+    - docker login "${DOCKER_REPOX_BUILDS_REGISTRY}" -u "${ARTIFACTORY_DEPLOY_USERNAME}" --password-stdin <<<"${ARTIFACTORY_DEPLOY_PASSWORD}"
+  build_script:
+    - echo "Build and push the ${STAGING_IMAGE_TAG} image"
+    - docker build --tag "${STAGING_IMAGE_TAG}" --push .
+
+# Scan the current image built and pushed to Artifactory
+mend_task:
+  # run only on default and long-term branches
+  only_if: $CIRRUS_USER_COLLABORATOR == 'true' && $CIRRUS_TAG == "" && ($CIRRUS_BRANCH == $CIRRUS_DEFAULT_BRANCH || $CIRRUS_BRANCH =~ "branch-.*")
+  ec2_instance:
+    <<: *VM_TEMPLATE
+  login_script:
+    - docker login "${DOCKER_REPOX_BUILDS_REGISTRY}" -u "${ARTIFACTORY_DEPLOY_USERNAME}" --password-stdin <<<"${ARTIFACTORY_DEPLOY_PASSWORD}"
   setup_script:
     - apt-get remove -y unattended-upgrades
     - apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre
     - curl -sSL https://unified-agent.s3.amazonaws.com/wss-unified-agent.jar -o wss-unified-agent.jar
-    - echo "docker.includes=${CURRENT_TAG}" >> .cirrus/wss-unified-agent.config
+    - echo "docker.includes=.*${DOCKER_IMAGE}.*" >> .cirrus/wss-unified-agent.config
   scan_script:
-    - echo "Scan the ${STAGING_IMAGE_NAME}:${CURRENT_TAG} image supporting linux/${platform}"
-    - docker pull --platform linux/${platform} "${STAGING_IMAGE_NAME}:${CURRENT_TAG}"
-    - java -jar wss-unified-agent.jar -c .cirrus/wss-unified-agent.config -apiKey $MEND_API_KEY -product ${WS_PRODUCTNAME} -project ${STAGING_IMAGE_NAME}:${CURRENT_TAG} -wss.url ${WS_WSS_URL} -docker.scanImages true
-depends_on: multi_arch_build
+    - echo "Scan the ${STAGING_IMAGE_TAG} image"
+    - docker pull "${STAGING_IMAGE_TAG}"
+    - java -jar wss-unified-agent.jar -c .cirrus/wss-unified-agent.config -apiKey $MEND_API_KEY -project ${DOCKER_IMAGE}:${CIRRUS_BRANCH}
+  depends_on: build
 
-public_scan_task: 
+# Scan the latest image published on Docker Hub
+latest_mend_task:
   only_if: $CIRRUS_CRON == 'nightly-mend-scan'
   env:
     PUBLIC_IMAGE_NAME: sonarsource/sonar-scanner-cli
@@ -70,23 +69,39 @@ public_scan_task:
     - apt-get remove -y unattended-upgrades
     - apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre
     - curl -sSL https://unified-agent.s3.amazonaws.com/wss-unified-agent.jar -o wss-unified-agent.jar
-    - echo "docker.includes=${TAG}" >> .cirrus/wss-unified-agent.config
+    - echo "docker.includes=.*${PUBLIC_IMAGE_NAME}.*" >> .cirrus/wss-unified-agent.config
   scan_script:
     - echo "Scan the ${PUBLIC_IMAGE_NAME}:${TAG} image"
     - docker pull "${PUBLIC_IMAGE_NAME}:${TAG}"
-    - java -jar wss-unified-agent.jar -c .cirrus/wss-unified-agent.config -apiKey $MEND_API_KEY -product ${WS_PRODUCTNAME} -project ${PUBLIC_IMAGE_NAME}:${TAG} -wss.url ${WS_WSS_URL} -docker.scanImages true
+    - java -jar wss-unified-agent.jar -c .cirrus/wss-unified-agent.config -apiKey $MEND_API_KEY -project ${PUBLIC_IMAGE_NAME}:${TAG}
 
-multi_arch_test_docker_builder:
-  env:
-    matrix:
-      CIRRUS_ARCH: "arm64"
-      CIRRUS_ARCH: "amd64"
+test_docker_builder:
+  <<: *ONLY_SONARSOURCE_QA
+  submodules_script:
+    - git submodule init
+    - git submodule update
   login_script:
-    - docker login --username $DOCKER_USERNAME --password $DOCKER_PASSWORD
+    - docker login "${DOCKER_REPOX_BUILDS_REGISTRY}" -u "${ARTIFACTORY_DEPLOY_USERNAME}" --password-stdin <<<"${ARTIFACTORY_DEPLOY_PASSWORD}"
   test_script:
     - apt-get update && apt-get install -qy bats
     - echo "Checking out the sonar-scanning-examples repository"
     - git clone https://github.com/SonarSource/sonar-scanning-examples.git target_repository
-    - echo "Test the ${STAGING_IMAGE_NAME}:${CURRENT_TAG} image supporting linux/${CIRRUS_ARCH}"
-    - TEST_IMAGE="${STAGING_IMAGE_NAME}:${CURRENT_TAG}" bats --tap test
-  depends_on: multi_arch_build
+    - echo "Test the ${STAGING_IMAGE_TAG} image"
+    - TEST_IMAGE="${STAGING_IMAGE_TAG}" bats --tap test
+  depends_on: build
+
+sonar_scan_task:
+  <<: *ONLY_SONARSOURCE_QA
+  eks_container:
+    region: eu-central-1
+    cluster_name: ${CIRRUS_CLUSTER_NAME}
+    namespace: default
+    image: sonarsource/sonar-scanner-cli:latest
+    cpu: 4
+    memory: 4G
+  env:
+    SONAR_TOKEN: VAULT[development/kv/data/next data.token]
+    SONAR_HOST_URL: VAULT[development/kv/data/next data.url]
+  script:
+    - source .cirrus/scan.sh
+  depends_on: build

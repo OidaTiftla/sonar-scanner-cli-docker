@@ -14,23 +14,31 @@ jobs:
       id-token: write
     steps:
       - id: secrets
-        uses: SonarSource/vault-action-wrapper@2.4.3-1
+        uses: SonarSource/vault-action-wrapper@3.0.0
         with:
           secrets: |
             development/kv/data/sign key | gpg_key;
             development/kv/data/sign passphrase | gpg_passphrase;
             development/kv/data/docker/sonardockerrw access_token_rwd | docker_access_token;
             development/kv/data/docker/sonardockerrw username | docker_username;
+            development/artifactory/token/{REPO_OWNER_NAME_DASH}-docker-release username | repox_username;
             development/artifactory/token/{REPO_OWNER_NAME_DASH}-docker-release access_token | repox_access_token;
             development/kv/data/slack webhook | slack_webhook;
       - name: Get the version
         id: get_version
         run: |
-          IFS=. read major minor micro build <<<"${{ github.event.release.tag_name }}"
-          echo "cli_version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-          echo "major_version=${major}" >> $GITHUB_OUTPUT
-          echo "major_minor=${major}.${minor}" >> $GITHUB_OUTPUT
-          echo "major_minor_patch=${major}.${minor}.${micro}" >> $GITHUB_OUTPUT
+          full_image_tag=${{ github.event.release.tag_name }}
+          if [[ ! ${full_image_tag} =~ ^[1-9][0-9]+.[0-9]+.[0-9]+.[0-9]+_[0-9]+.[0-9]+.[0-9]+ ]]; then
+            echo "The release tag should be in the format of {major}.{minor}.{patch}.{buildnumber}_{scanner_major}.{scanner_minor}.{scanner_patch} but it was ${full_image_tag}"
+            exit 1
+          fi
+          
+          IFS=. read docker_major docker_minor docker_patch build_and_scanner <<<"${full_image_tag}"
+          IFS=_ read buildnumber scanner_version <<<"${build_and_scanner}"
+          echo "major_version=${docker_major}" >> $GITHUB_OUTPUT
+          echo "major_minor=${docker_major}.${docker_minor}" >> $GITHUB_OUTPUT
+          echo "full_image_tag=${full_image_tag}" >> $GITHUB_OUTPUT
+          echo "buildnumber=${buildnumber}" >> $GITHUB_OUTPUT
         shell: bash
       - uses: actions/checkout@v2
         with:
@@ -39,46 +47,54 @@ jobs:
         with:
           repository: SonarSource/sonar-scanning-examples
           path: target_repository
-      - name: Build image
+      - name: Pull staged image
         run: |
-          docker build "${{ steps.get_version.outputs.major_version }}" \
-            --tag "sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.major_version }}" \
-            --tag "repox-sonarsource-docker-releases.jfrog.io/sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.major_version }}" \
-            --tag "sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.major_minor }}" \
-            --tag "repox-sonarsource-docker-releases.jfrog.io/sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.major_minor }}" \
-            --tag "sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.major_minor_patch }}" \
-            --tag "repox-sonarsource-docker-releases.jfrog.io/sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.major_minor_patch }}" \
-            --tag "sonarsource/sonar-scanner-cli:latest" \
-            --tag "repox-sonarsource-docker-releases.jfrog.io/sonarsource/sonar-scanner-cli:latest" \
-            --build-arg SONAR_SCANNER_VERSION=${{ steps.get_version.outputs.cli_version }}
-      - name: Test image
-        run: ./run-tests.sh "sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.major_minor }}"
+          docker login repox-sonarsource-docker-builds.jfrog.io --username ${{ fromJSON(steps.secrets.outputs.vault).repox_username }} --password-stdin <<< "${{ fromJSON(steps.secrets.outputs.vault).repox_access_token }}"
+          docker pull "repox-sonarsource-docker-builds.jfrog.io/sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.buildnumber }}"
       - name: Generate CycloneDX SBOM
         uses: SonarSource/gh-action_sbom@v1
         with:
-          image: "sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.major_minor }}"
-          filename: "sonar-scanner-cli-${{ matrix.tag }}-bom.json"
+          image: "repox-sonarsource-docker-builds.jfrog.io/sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.buildnumber }}"
+          filename: "sonar-scanner-cli-docker-${{ steps.get_version.outputs.full_image_tag }}-bom.json"
           upload-artifact: true
           upload-release-assets: true
         env:
           GPG_PRIVATE_KEY_PASSPHRASE: ${{ fromJSON(steps.secrets.outputs.vault).gpg_passphrase }}
           GPG_PRIVATE_KEY_BASE64: ${{ fromJSON(steps.secrets.outputs.vault).gpg_key }}
-      - name: Push image
+      - name: Promote the staged build
+        env:
+          ARTIFACTORY_URL: https://repox.jfrog.io/repox
         run: |
+          source_repo_key=sonarsource-docker-builds
+          target_repo_key=sonarsource-docker-releases
+          docker_image=sonarsource/sonar-scanner-cli
+          buildnumber=${{ steps.get_version.outputs.buildnumber }}
+          full_image_tag=${{ github.event.release.tag_name }}
+          DATA_JSON="{ \"targetRepo\": \"${target_repo_key}\", \"dockerRepository\": \"${docker_image}\", \"tag\": \"${buildnumber}\", \"targetTag\": \"${full_image_tag}\", \"copy\": true }"
+          HTTP_CODE=$(curl -s -o /dev/null -w %{http_code} -H "Content-Type: application/json" -H "Authorization: Bearer ${{ fromJSON(steps.secrets.outputs.vault).repox_access_token }}" -X POST "$ARTIFACTORY_URL/api/docker/$source_repo_key/v2/promote" --data "$DATA_JSON")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Cannot promote ${docker_image}#${full_image_tag}: ($HTTP_CODE)"
+            exit 1
+          else
+            echo "${docker_image}#${full_image_tag} promoted to ${target_repo_key}"
+          fi
+      - name: Push image to Docker Hub
+        run: |
+          buildnumber=${{ steps.get_version.outputs.buildnumber }}
+          
+          docker tag "repox-sonarsource-docker-builds.jfrog.io/sonarsource/sonar-scanner-cli:${buildnumber}" "sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.major_version }}"
+          docker tag "repox-sonarsource-docker-builds.jfrog.io/sonarsource/sonar-scanner-cli:${buildnumber}" "sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.major_minor }}"
+          docker tag "repox-sonarsource-docker-builds.jfrog.io/sonarsource/sonar-scanner-cli:${buildnumber}" "sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.full_image_tag }}"
+
           docker login --username ${{ fromJSON(steps.secrets.outputs.vault).docker_username }} --password-stdin <<< "${{ fromJSON(steps.secrets.outputs.vault).docker_access_token }}"
+
           docker push sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.major_version }}
           docker push sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.major_minor }}
-          docker push sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.major_minor_patch }}
-          docker push sonarsource/sonar-scanner-cli:latest
-          docker login repox-sonarsource-docker-releases.jfrog.io --username vault-SonarSource-sonar-scanner-cli-docker-docker-release --password-stdin <<< "${{ fromJSON(steps.secrets.outputs.vault).repox_access_token }}"
-          docker push repox-sonarsource-docker-releases.jfrog.io/sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.major_version }}
-          docker push repox-sonarsource-docker-releases.jfrog.io/sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.major_minor }}
-          docker push repox-sonarsource-docker-releases.jfrog.io/sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.major_minor_patch }}
-          docker push repox-sonarsource-docker-releases.jfrog.io/sonarsource/sonar-scanner-cli:latest
+          docker push sonarsource/sonar-scanner-cli:${{ steps.get_version.outputs.full_image_tag }}
       - name: Notify success on Slack
         uses: Ilshidur/action-slack@2.1.0
         env:
-          SLACK_CHANNEL: team-sq-devops
+          SLACK_CHANNEL: squad-analysis-experience
           SLACK_WEBHOOK: ${{ fromJSON(steps.secrets.outputs.vault).slack_webhook }}
         with:
           args: "Release successful for {{ GITHUB_REPOSITORY }} by {{ GITHUB_ACTOR }}"
@@ -86,7 +102,7 @@ jobs:
         uses: Ilshidur/action-slack@2.1.0
         if: failure()
         env:
-          SLACK_CHANNEL: team-sq-devops
+          SLACK_CHANNEL: squad-analysis-experience
           SLACK_WEBHOOK: ${{ fromJSON(steps.secrets.outputs.vault).slack_webhook }}
         with:
           args: "Release failed, see the logs at https://github.com/{{ GITHUB_REPOSITORY }}/actions by {{ GITHUB_ACTOR }}"
