@@ -1,0 +1,39 @@
+name: Publish SonarScanner Images
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sonarscanner-image-publisher
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and publish images
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install builder dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes curl jq perl pup
+
+      - name: Docker Hub login
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and publish images
+        shell: bash
+        env:
+          DOCKER_IMAGE: ${{ vars.DOCKER_IMAGE }}
+        run: ./docker-sonarscanner-builder.sh

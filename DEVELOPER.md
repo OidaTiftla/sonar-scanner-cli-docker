@@ -76,37 +76,17 @@ And run the scanner:
 # make sure SQ is up and running
 docker run -e SONAR_HOST_URL=http://sq:9000 --network="scanner-sq-network" -it -v "/path/to/project:/usr/src" scanner-cli-local
 ```
-## Automatic tests
+## CI image publishing
 
-The QA process is handled on `.cirrus.yml`, which is responsible for the following:
+The `Publish SonarScanner Images` workflow runs every Monday at 06:00 UTC and can be started manually. It checks current scanner versions, builds each supported .NET SDK image, and publishes the tags to Docker Hub.
 
-- linting the Dockerfile to make sure it complies with best practices
-- build the image
-- test the image by running a scan on a sample project
-- run scans to find potential vulnerabilities
+### Configure a fork
 
-## Releasing
+1. Create a Docker Hub personal access token with Read and Write permissions. Do not use your Docker Hub password.
+2. In the fork, open **Settings > Secrets and variables > Actions**.
+3. Add the `DOCKERHUB_USERNAME` repository secret with the Docker Hub username.
+4. Add the `DOCKERHUB_TOKEN` repository secret with the access token.
+5. Add the `DOCKER_IMAGE` repository variable with the Docker Hub image name, for example `your-dockerhub-user/sonarscanner`.
+6. Run the `Publish SonarScanner Images` workflow from the Actions tab.
 
-Releases are triggered manually through the `Release` workflow (`.github/workflows/release.yml`).
-
-### How to release
-
-1. Go to the [Release workflow](../../actions/workflows/release.yml) on GitHub Actions.
-2. Click **Run workflow** and select the branch to release from (see [Branch to dispatch from](#branch-to-dispatch-from) below).
-3. Provide the `tag_name` input in the format `{major}.{minor}.{patch}.{build}_{scanner_major}.{scanner_minor}.{scanner_patch}` (e.g. `4.8.0.2699_6.2.1`).
-
-The workflow validates the tag format, creates and pushes the git tag at HEAD of the dispatched branch, generates the SBOM, promotes the staged Docker image, pushes it to Docker Hub, and finally publishes the GitHub release.
-
-### Branch to dispatch from
-
-The git tag is created at HEAD of the branch the workflow is dispatched from. Choose the branch accordingly:
-
-- **Latest release**: dispatch from `master`.
-- **Maintenance release on a long-lived branch** (e.g. `branch-4.8`): dispatch from that `branch-*` branch, **not** from `master`. Dispatching from `master` would tag a commit that does not belong to the maintenance line.
-
-### Recovering from a failed release
-
-If the workflow fails after the git tag has been pushed, re-dispatching with the same tag will fail at the pre-flight check. To recover:
-
-1. Delete the tag from the remote: `git push origin :refs/tags/<TAG_NAME>`
-2. If a draft GitHub release was created for that tag, delete it from the [Releases page](../../releases) before re-dispatching.
+GitHub Secrets keep the Docker Hub token out of the repository and workflow logs. See the [GitHub Actions secrets documentation](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions) and [Docker Hub access token documentation](https://docs.docker.com/security/for-developers/access-tokens/).
