@@ -31,3 +31,10 @@ Copyright 2015-2025 SonarSource.
 
 Licensed under the [GNU Lesser General Public License, Version 3.0](http://www.gnu.org/licenses/lgpl.txt)
 
+## Nix flake maintenance
+
+Run `nix --extra-experimental-features 'nix-command flakes' flake update` regularly to keep dependencies current and secure.
+
+## Dev container maintenance
+
+Run `devcontainer upgrade --workspace-folder .` regularly to keep feature versions current and secure.

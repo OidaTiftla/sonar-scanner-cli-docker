@@ -1,3 +1,13 @@
+
+# direnv
+.direnv/
+
+.env
+!.env.example
+.env*
+!.envrc
+!.env*.example
+
 # ---- IntelliJ IDEA
 *.iws
 *.iml
