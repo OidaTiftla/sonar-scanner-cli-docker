@@ -5,7 +5,7 @@ Images are available on [Docker Hub](https://hub.docker.com/r/sonarsource/sonar-
 
 Sonar's [Clean Code solutions](https://www.sonarsource.com/solutions/clean-code/?utm_medium=referral&utm_source=github&utm_campaign=clean-code&utm_content=sonar-scanner-cli-docker) help developers deliver high-quality, efficient code standards that benefit the entire team or organization. 
 
-NB: These Docker images are not compatible with C/C#/C++/Objective-C projects.
+NB: These Docker images are not compatible with C# and Objective-C projects. For C&C++, the docker images are only compatible with [AutoConfig mode](https://docs.sonarsource.com/sonarqube/latest/analyzing-source-code/languages/c-family/analysis-modes/).
 
 ## Usage and configuration
 
@@ -27,6 +27,7 @@ With that in mind, if you would like to submit a code contribution, please creat
 
 ## License
 
-Copyright 2015-2024 SonarSource.
+Copyright 2015-2025 SonarSource.
 
 Licensed under the [GNU Lesser General Public License, Version 3.0](http://www.gnu.org/licenses/lgpl.txt)
+

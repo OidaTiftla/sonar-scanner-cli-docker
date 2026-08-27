@@ -1,31 +1,29 @@
 ARG DOTNET_VERSION
 
-FROM alpine:3.19 AS builder
+FROM alpine:3.23 AS builder
 
 LABEL org.opencontainers.image.url=https://github.com/SonarSource/sonar-scanner-cli-docker
 
 ARG SONAR_SCANNER_HOME=/opt/sonar-scanner
-ARG SONAR_SCANNER_VERSION=6.1.0.4477
+ARG SONAR_SCANNER_VERSION=8.0.1.6346
 ENV HOME=/tmp \
     XDG_CONFIG_HOME=/tmp \
     SONAR_SCANNER_HOME=${SONAR_SCANNER_HOME} \
     SCANNER_BINARIES=https://binaries.sonarsource.com/Distribution/sonar-scanner-cli
-ENV SCANNER_ZIP_URL="${SCANNER_BINARIES}/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux-x64.zip"
+ENV SCANNER_ZIP_URL="${SCANNER_BINARIES}/sonar-scanner-cli-${SONAR_SCANNER_VERSION}.zip"
 
 WORKDIR /opt
 
+ADD ${SCANNER_ZIP_URL} /opt/sonar-scanner-cli.zip
+ADD ${SCANNER_ZIP_URL}.asc /opt/sonar-scanner-cli.zip.asc
+
 RUN set -eux; \
     apk add --no-cache --virtual build-dependencies gnupg unzip wget; \
-    wget -U "scannercli" -q -O /opt/sonar-scanner-cli.zip ${SCANNER_ZIP_URL}; \
-    wget -U "scannercli" -q -O /opt/sonar-scanner-cli.zip.asc ${SCANNER_ZIP_URL}.asc; \
-    for server in $(shuf -e hkps://keys.openpgp.org \
-                            hkps://keyserver.ubuntu.com) ; do \
-        gpg --batch --keyserver "${server}" --recv-keys 679F1EE92B19609DE816FDE81DB198F93525EC1A && break || : ; \
-    done; \
+    gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys 679F1EE92B19609DE816FDE81DB198F93525EC1A; \
     gpg --verify /opt/sonar-scanner-cli.zip.asc /opt/sonar-scanner-cli.zip; \
     unzip sonar-scanner-cli.zip; \
     rm sonar-scanner-cli.zip sonar-scanner-cli.zip.asc; \
-    mv sonar-scanner-${SONAR_SCANNER_VERSION}-linux-x64 ${SONAR_SCANNER_HOME}; \
+    mv "sonar-scanner-${SONAR_SCANNER_VERSION}" "${SONAR_SCANNER_HOME}"; \
     apk del --purge build-dependencies;
 
 
@@ -43,9 +41,13 @@ ENV HOME=/tmp \
     XDG_CONFIG_HOME=/tmp \
     SONAR_SCANNER_HOME=${SONAR_SCANNER_HOME} \
     SONAR_USER_HOME=${SONAR_SCANNER_HOME}/.sonar \
-    PATH=${SONAR_SCANNER_HOME}/bin:${PATH} \
+    PATH=${SONAR_SCANNER_HOME}/bin:/opt/poetry/venv/bin:${PATH} \
     SRC_PATH=/usr/src \
-    SCANNER_WORKDIR_PATH=/tmp/.scannerwork
+    SCANNER_WORKDIR_PATH=/tmp/.scannerwork \
+    POETRY_CACHE_DIR=/opt/poetry/cache \
+    POETRY_VIRTUALENVS_PATH=/opt/poetry/virtualenvs \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
 
 # Copy Scanner installation from builder image
 COPY --from=builder /opt/sonar-scanner /opt/sonar-scanner
@@ -55,16 +57,26 @@ RUN \
     # Security updates
     && apt-get upgrade -y \
     && apt-get install -y git \
+    && apt-get install -y tar \
+    && apt-get install -y curl \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs \
+    && apt-get install -y python3 python3-venv \
+    && python3 -m venv /opt/poetry/venv \
+    && /opt/poetry/venv/bin/pip install --no-cache-dir --only-binary=poetry poetry==2.3.2 \
+    && /opt/poetry/venv/bin/pip cache purge \
     && rm -rf /var/lib/apt/lists/* \
     && set -eux \
     && groupadd --system --gid 1000 scanner-cli \
-    && useradd --system --uid 1000 --gid scanner-cli scanner-cli \
+    && useradd --system -d "${HOME}" --uid 1000 --gid scanner-cli scanner-cli \
     && chown -R scanner-cli:scanner-cli "${SONAR_SCANNER_HOME}" "${SRC_PATH}" \
     && mkdir -p "${SRC_PATH}" "${SONAR_USER_HOME}" "${SONAR_USER_HOME}/cache" "${SCANNER_WORKDIR_PATH}" \
+       "${POETRY_CACHE_DIR}" "${POETRY_VIRTUALENVS_PATH}" \
     && chown -R scanner-cli:scanner-cli "${SONAR_SCANNER_HOME}" "${SRC_PATH}" "${SCANNER_WORKDIR_PATH}" \
+       "${POETRY_CACHE_DIR}" "${POETRY_VIRTUALENVS_PATH}" \
     && chmod -R 555 "${SONAR_SCANNER_HOME}" \
-    && chmod -R 754 "${SRC_PATH}" "${SONAR_USER_HOME}" "${SCANNER_WORKDIR_PATH}"
+    && chmod -R 754 "${SRC_PATH}" "${SONAR_USER_HOME}" "${SCANNER_WORKDIR_PATH}" \
+       "${POETRY_CACHE_DIR}" "${POETRY_VIRTUALENVS_PATH}"
 
 COPY --chown=scanner-cli:scanner-cli bin /usr/bin/
 

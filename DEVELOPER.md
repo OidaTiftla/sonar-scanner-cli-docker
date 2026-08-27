@@ -1,15 +1,13 @@
 # How to build the Docker image
 
-Each major scanner version gets its image in a specific directory.
-
-E.g., to build sonar-scanner 5.x under the image name `scanner-cli` (get the latest version of the cli `5.0.1.3006` from [SonarScanner](https://docs.sonarqube.org/latest/analysis/scan/sonarscanner/)):
+Get the latest version of the cli from [SonarScanner](https://docs.sonarqube.org/latest/analysis/scan/sonarscanner/).
 
 ```bash
-docker build --pull --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=5.0.1.3006 --build-arg DOTNET_SONAR_SCANNER_VERSION=6.2.0 --build-arg DOTNET_VERSION=8.0 --tag oidatiftla/sonarscanner:net8.0 -f 5/Dockerfile 5 \
+docker build --pull --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=5.0.1.3006 --build-arg DOTNET_SONAR_SCANNER_VERSION=6.2.0 --build-arg DOTNET_VERSION=8.0 --tag oidatiftla/sonarscanner:net8.0. \
     && docker push oidatiftla/sonarscanner:net8.0
-docker build --pull --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=5.0.1.3006 --build-arg DOTNET_SONAR_SCANNER_VERSION=6.2.0 --build-arg DOTNET_VERSION=7.0 --tag oidatiftla/sonarscanner:net7.0 -f 5/Dockerfile 5 \
+docker build --pull --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=5.0.1.3006 --build-arg DOTNET_SONAR_SCANNER_VERSION=6.2.0 --build-arg DOTNET_VERSION=7.0 --tag oidatiftla/sonarscanner:net7.0. \
     && docker push oidatiftla/sonarscanner:net7.0
-docker build --pull --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=5.0.1.3006 --build-arg DOTNET_SONAR_SCANNER_VERSION=6.2.0 --build-arg DOTNET_VERSION=6.0 --tag oidatiftla/sonarscanner:net6.0 -f 5/Dockerfile 5 \
+docker build --pull --platform linux/amd64 --build-arg SONAR_SCANNER_VERSION=5.0.1.3006 --build-arg DOTNET_SONAR_SCANNER_VERSION=6.2.0 --build-arg DOTNET_VERSION=6.0 --tag oidatiftla/sonarscanner:net6.0. \
     && docker push oidatiftla/sonarscanner:net6.0
 docker tag oidatiftla/sonarscanner:net8.0 oidatiftla/sonarscanner \
     && docker push oidatiftla/sonarscanner
@@ -22,19 +20,13 @@ docker tag oidatiftla/sonarscanner:net8.0 oidatiftla/sonarscanner \
 With a SonarQube (SQ) running on default configuration (`http://localhost:9000`), the following will analyze the project in the directory `/path/to/project`:
 
 ```bash
-docker run --user="$(id -u):$(id -g)" -it -v "/path/to/project:/usr/src" sonarsource/sonar-scanner-cli
+docker run -it -v "/path/to/project:/usr/src" --network="host" -e SONAR_HOST_URL=http://localhost:9000 scanner-cli-local
 ```
 
 To analyze the project in the current directory:
 
 ```bash
-docker run --user="$(id -u):$(id -g)" -it -v "$PWD:/usr/src" sonarsource/sonar-scanner-cli
-```
-
-If SQ is running on another port, you can specify it by adding the following to the `docker run` command:
-
-```bash
--e SONAR_HOST_URL=http://localhost:9010
+docker run -it -v "$PWD:/usr/src" --network="host"  -e SONAR_HOST_URL=http://localhost:9000 scanner-cli-local
 ```
 
 ### On Linux with SonarQube running in Docker
@@ -50,7 +42,7 @@ And run the scanner:
 
 ```bash
 # make sure SQ is up and running
-docker run -e SONAR_HOST_URL=http://sq:9000 --network="scanner-sq-network" --user="$(id -u):$(id -g)" -it -v "/path/to/project:/usr/src" sonarsource/sonar-scanner-cli
+docker run -e SONAR_HOST_URL=http://sq:9000 --network="scanner-sq-network" -it -v "/path/to/project:/usr/src" scanner-cli-local
 ```
 
 ### On Mac with local SonarQube
@@ -60,13 +52,13 @@ On Mac, `host.docker.internal` should be used instead of `localhost`.
 To analyze the project located in `/path/to/project`, execute:
 
 ```bash
-docker run -e SONAR_HOST_URL=http://host.docker.internal:9000 -it -v "/path/to/project:/usr/src" sonarsource/sonar-scanner-cli
+docker run -e SONAR_HOST_URL=http://host.docker.internal:9000 -it -v "/path/to/project:/usr/src" scanner-cli-local
 ```
 
 To analyze the project in the current directory, execute:
 
 ```bash
-docker run -e SONAR_HOST_URL=http://host.docker.internal:9000 -it -v "$(pwd):/usr/src" sonarsource/sonar-scanner-cli
+docker run -e SONAR_HOST_URL=http://host.docker.internal:9000 -it -v "$(pwd):/usr/src" scanner-cli-local
 ```
 
 ### On Mac with SonarQube running in Docker
@@ -82,25 +74,8 @@ And run the scanner:
 
 ```bash
 # make sure SQ is up and running
-docker run -e SONAR_HOST_URL=http://sq:9000 --network="scanner-sq-network" -it -v "/path/to/project:/usr/src" sonarsource/sonar-scanner-cli
+docker run -e SONAR_HOST_URL=http://sq:9000 --network="scanner-sq-network" -it -v "/path/to/project:/usr/src" scanner-cli-local
 ```
-
-## How to publish the Docker image
-
-### Docker-hub official image release
-
-Sonar-scanner-cli is now part of the docker hub official images; you can find more details on the release doc [here](./RELEASE.md)
-
-### [DEPRECATED] Release on SonarSource docker hub account
-
-This image was built every day on master through the rebuild.yml and pushed to the docker hub SonarSource account [here](https://hub.docker.com/u/sonarsource); this workflow was used to rebuild the image in case a new base image patch was released.
-
-The same workflow was also triggered when a GitHub release was created. 
-
-We are removing entirely the rebuild workflow, replacing it with sonar-scanner-cli-docker, which is available as a [docker hub official image](https://docs.docker.com/docker-hub/official_images/). You can find more details on the doc [here](./RELEASE.md)
-
-In the meantime, to allow everyone to use that new repo, we are keeping the release.yml workflow.
-
 ## Automatic tests
 
 The QA process is handled on `.cirrus.yml`, which is responsible for the following:
@@ -109,3 +84,29 @@ The QA process is handled on `.cirrus.yml`, which is responsible for the followi
 - build the image
 - test the image by running a scan on a sample project
 - run scans to find potential vulnerabilities
+
+## Releasing
+
+Releases are triggered manually through the `Release` workflow (`.github/workflows/release.yml`).
+
+### How to release
+
+1. Go to the [Release workflow](../../actions/workflows/release.yml) on GitHub Actions.
+2. Click **Run workflow** and select the branch to release from (see [Branch to dispatch from](#branch-to-dispatch-from) below).
+3. Provide the `tag_name` input in the format `{major}.{minor}.{patch}.{build}_{scanner_major}.{scanner_minor}.{scanner_patch}` (e.g. `4.8.0.2699_6.2.1`).
+
+The workflow validates the tag format, creates and pushes the git tag at HEAD of the dispatched branch, generates the SBOM, promotes the staged Docker image, pushes it to Docker Hub, and finally publishes the GitHub release.
+
+### Branch to dispatch from
+
+The git tag is created at HEAD of the branch the workflow is dispatched from. Choose the branch accordingly:
+
+- **Latest release**: dispatch from `master`.
+- **Maintenance release on a long-lived branch** (e.g. `branch-4.8`): dispatch from that `branch-*` branch, **not** from `master`. Dispatching from `master` would tag a commit that does not belong to the maintenance line.
+
+### Recovering from a failed release
+
+If the workflow fails after the git tag has been pushed, re-dispatching with the same tag will fail at the pre-flight check. To recover:
+
+1. Delete the tag from the remote: `git push origin :refs/tags/<TAG_NAME>`
+2. If a draft GitHub release was created for that tag, delete it from the [Releases page](../../releases) before re-dispatching.
