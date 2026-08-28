@@ -6,10 +6,29 @@ fail() {
   exit 1
 }
 
-if [ -z "${DOCKER_IMAGE:-}" ]; then
-  fail "DOCKER_IMAGE must be set"
+declare -a docker_images
+for image in "${GHCR_IMAGE:-}" "${DOCKER_IMAGE:-}"; do
+  [ -n "$image" ] && docker_images+=("$image")
+done
+if [ "${#docker_images[@]}" -eq 0 ]; then
+  fail "DOCKER_IMAGE or GHCR_IMAGE must be set"
 fi
-docker_image="$DOCKER_IMAGE"
+primary_docker_image="${docker_images[0]}"
+
+publish_tags() {
+  local source_tag="$1"
+  local image tag
+  shift
+
+  for tag in "$@"; do
+    for image in "${docker_images[@]}"; do
+      if [ "$image" != "$primary_docker_image" ] || [ "$tag" != "$source_tag" ]; then
+        docker tag "${primary_docker_image}:${source_tag}" "${image}:${tag}" || return 1
+      fi
+      docker push "${image}:${tag}" || return 1
+    done
+  done
+}
 
 # go to directory of current file
 cd "$(dirname "$0")" || fail "unable to change to the script directory"
@@ -107,21 +126,23 @@ for dotnet_version in "${active_dotnet_versions_array[@]}"; do
   echo "============================="
   echo "build for .NET $dotnet_version ..."
   latest_dotnet_version="${dotnet_version}"
+  image_tags=(
+    "net${dotnet_version}"
+    "${latest_sonarqube_sonarscanner_version_major_minor_patch}-net${dotnet_version}"
+    "${latest_sonarqube_sonarscanner_version_major_minor}-net${dotnet_version}"
+    "${latest_sonarqube_sonarscanner_version_major}-net${dotnet_version}"
+    "${current_dotnet_sonarscanner_version_major_minor_patch}-for-dotnet-net${dotnet_version}"
+    "${current_dotnet_sonarscanner_version_major_minor}-for-dotnet-net${dotnet_version}"
+    "${current_dotnet_sonarscanner_version_major}-for-dotnet-net${dotnet_version}"
+  )
   if ! (
-    docker build --pull --platform linux/amd64 --build-arg "SONAR_SCANNER_VERSION=${latest_sonarqube_sonarscanner_version_major_minor_patch_build}" --build-arg "DOTNET_SONAR_SCANNER_VERSION=${current_dotnet_sonarscanner_version_major_minor_patch}" --build-arg "DOTNET_VERSION=${dotnet_version}" --tag "${docker_image}:net${dotnet_version}" -f Dockerfile . \
-      && docker push "${docker_image}:net${dotnet_version}" \
-      && docker tag "${docker_image}:net${dotnet_version}" "${docker_image}:${latest_sonarqube_sonarscanner_version_major_minor_patch}-net${dotnet_version}" \
-      && docker push "${docker_image}:${latest_sonarqube_sonarscanner_version_major_minor_patch}-net${dotnet_version}" \
-      && docker tag "${docker_image}:net${dotnet_version}" "${docker_image}:${latest_sonarqube_sonarscanner_version_major_minor}-net${dotnet_version}" \
-      && docker push "${docker_image}:${latest_sonarqube_sonarscanner_version_major_minor}-net${dotnet_version}" \
-      && docker tag "${docker_image}:net${dotnet_version}" "${docker_image}:${latest_sonarqube_sonarscanner_version_major}-net${dotnet_version}" \
-      && docker push "${docker_image}:${latest_sonarqube_sonarscanner_version_major}-net${dotnet_version}" \
-      && docker tag "${docker_image}:net${dotnet_version}" "${docker_image}:${current_dotnet_sonarscanner_version_major_minor_patch}-for-dotnet-net${dotnet_version}" \
-      && docker push "${docker_image}:${current_dotnet_sonarscanner_version_major_minor_patch}-for-dotnet-net${dotnet_version}" \
-      && docker tag "${docker_image}:net${dotnet_version}" "${docker_image}:${current_dotnet_sonarscanner_version_major_minor}-for-dotnet-net${dotnet_version}" \
-      && docker push "${docker_image}:${current_dotnet_sonarscanner_version_major_minor}-for-dotnet-net${dotnet_version}" \
-      && docker tag "${docker_image}:net${dotnet_version}" "${docker_image}:${current_dotnet_sonarscanner_version_major}-for-dotnet-net${dotnet_version}" \
-      && docker push "${docker_image}:${current_dotnet_sonarscanner_version_major}-for-dotnet-net${dotnet_version}"
+    docker build --pull --platform linux/amd64 \
+      --build-arg "SONAR_SCANNER_VERSION=${latest_sonarqube_sonarscanner_version_major_minor_patch_build}" \
+      --build-arg "DOTNET_SONAR_SCANNER_VERSION=${current_dotnet_sonarscanner_version_major_minor_patch}" \
+      --build-arg "DOTNET_VERSION=${dotnet_version}" \
+      --tag "${primary_docker_image}:${image_tags[0]}" \
+      -f Dockerfile . \
+      && publish_tags "${image_tags[0]}" "${image_tags[@]}"
   ); then
     echo "build for .NET $dotnet_version failed" >&2
     any_failed=1
@@ -134,10 +155,7 @@ fi
 echo ""
 echo "============================="
 echo "push latest ..."
-if ! (
-  docker tag "${docker_image}:net${latest_dotnet_version}" "${docker_image}:latest" \
-    && docker push "${docker_image}:latest"
-); then
+if ! publish_tags "net${latest_dotnet_version}" latest; then
   fail "push latest failed"
 fi
 if [ "$any_failed" -ge 1 ]; then

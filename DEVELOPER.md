@@ -78,7 +78,7 @@ docker run -e SONAR_HOST_URL=http://sq:9000 --network="scanner-sq-network" -it -
 ```
 ## CI image publishing
 
-The `Publish SonarScanner Images` workflow runs every Monday at 06:00 UTC and can be started manually. It checks current scanner versions, builds each supported .NET SDK image, and publishes the tags to Docker Hub.
+The `Publish SonarScanner Images` workflow runs every Monday at 06:00 UTC and can be started manually. It checks current scanner versions, builds each supported .NET SDK image once, and publishes the tags to Docker Hub and GitHub Container Registry.
 
 ### Configure a fork
 
@@ -87,6 +87,7 @@ The `Publish SonarScanner Images` workflow runs every Monday at 06:00 UTC and ca
 3. Add the `DOCKERHUB_USERNAME` repository secret with the Docker Hub username.
 4. Add the `DOCKERHUB_TOKEN` repository secret with the access token.
 5. Add the `DOCKER_IMAGE` repository variable with the Docker Hub image name, for example `your-dockerhub-user/sonarscanner`.
-6. Run the `Publish SonarScanner Images` workflow from the Actions tab.
+6. Add the `GHCR_IMAGE` repository variable with the lowercase GitHub Container Registry image name, for example `ghcr.io/your-github-user/sonarscanner`.
+7. Run the `Publish SonarScanner Images` workflow from the Actions tab.
 
-GitHub Secrets keep the Docker Hub token out of the repository and workflow logs. See the [GitHub Actions secrets documentation](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions) and [Docker Hub access token documentation](https://docs.docker.com/security/for-developers/access-tokens/).
+GitHub Secrets keep the Docker Hub token out of the repository and workflow logs. The workflow uses its `GITHUB_TOKEN` to publish to GitHub Container Registry. See the [GitHub Actions secrets documentation](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions), [Docker Hub access token documentation](https://docs.docker.com/security/for-developers/access-tokens/), and [GitHub Container Registry documentation](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).

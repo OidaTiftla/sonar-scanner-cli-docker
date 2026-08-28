@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 concurrency:
   group: sonarscanner-image-publisher
@@ -32,8 +33,16 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: GitHub Container Registry login
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build and publish images
         shell: bash
         env:
           DOCKER_IMAGE: ${{ vars.DOCKER_IMAGE }}
+          GHCR_IMAGE: ${{ vars.GHCR_IMAGE }}
         run: ./docker-sonarscanner-builder.sh
