@@ -1,6 +1,6 @@
 ARG DOTNET_VERSION
 
-FROM alpine:3.23 AS builder
+FROM alpine:3.24 AS builder
 
 LABEL org.opencontainers.image.url=https://github.com/SonarSource/sonar-scanner-cli-docker
 
