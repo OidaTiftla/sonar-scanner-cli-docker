@@ -15,6 +15,8 @@ if [ "${#docker_images[@]}" -eq 0 ]; then
 fi
 primary_docker_image="${docker_images[0]}"
 
+declare -a docker_cache_args
+
 publish_tags() {
   local source_tag="$1"
   local image tag
@@ -135,8 +137,17 @@ for dotnet_version in "${active_dotnet_versions_array[@]}"; do
     "${current_dotnet_sonarscanner_version_major_minor}-for-dotnet-net${dotnet_version}"
     "${current_dotnet_sonarscanner_version_major}-for-dotnet-net${dotnet_version}"
   )
+  docker_cache_args=()
+  if [ -n "${GHCR_IMAGE:-}" ]; then
+    ghcr_cache_image="${GHCR_IMAGE}:buildcache-net${dotnet_version}"
+    docker_cache_args=(
+      --cache-from "type=registry,ref=${ghcr_cache_image}"
+      --cache-to "type=registry,ref=${ghcr_cache_image},mode=max"
+    )
+  fi
   if ! (
-    docker build --pull --platform linux/amd64 \
+    docker buildx build --load --pull --platform linux/amd64 \
+      "${docker_cache_args[@]}" \
       --build-arg "SONAR_SCANNER_VERSION=${latest_sonarqube_sonarscanner_version_major_minor_patch_build}" \
       --build-arg "DOTNET_SONAR_SCANNER_VERSION=${current_dotnet_sonarscanner_version_major_minor_patch}" \
       --build-arg "DOTNET_VERSION=${dotnet_version}" \

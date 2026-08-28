@@ -80,6 +80,8 @@ docker run -e SONAR_HOST_URL=http://sq:9000 --network="scanner-sq-network" -it -
 
 The `Publish SonarScanner Images` workflow runs every Monday at 06:00 UTC and can be started manually. It checks current scanner versions, builds each supported .NET SDK image once, and publishes the tags to Docker Hub and GitHub Container Registry.
 
+When `GHCR_IMAGE` is configured, the workflow imports and exports a separate Buildx registry cache for each .NET version at `${GHCR_IMAGE}:buildcache-net<version>`. The `--pull` option still checks for updated base images on every scheduled run.
+
 ### Configure a fork
 
 1. Create a Docker Hub personal access token with Read and Write permissions. Do not use your Docker Hub password.

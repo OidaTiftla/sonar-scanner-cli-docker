@@ -40,6 +40,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Create Buildx builder
+        shell: bash
+        run: docker buildx create --driver docker-container --use
+
       - name: Build and publish images
         shell: bash
         env:
