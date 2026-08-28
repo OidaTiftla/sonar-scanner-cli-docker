@@ -67,20 +67,23 @@ RUN \
     && /opt/poetry/venv/bin/pip cache purge \
     && rm -rf /var/lib/apt/lists/* \
     && set -eux \
-    && groupadd --system --gid 1000 scanner-cli \
-    && useradd --system -d "${HOME}" --uid 1000 --gid scanner-cli scanner-cli \
-    && chown -R scanner-cli:scanner-cli "${SONAR_SCANNER_HOME}" "${SRC_PATH}" \
+    # Reuse the existing .NET 10+ user with UID 1000; create it for root-only base images.
+    && if ! getent passwd 1000 >/dev/null; then \
+      getent group 1000 >/dev/null || groupadd --system --gid 1000 scanner-cli; \
+      useradd --system -d "${HOME}" --uid 1000 --gid 1000 scanner-cli; \
+    fi \
+    && chown -R 1000:1000 "${SONAR_SCANNER_HOME}" "${SRC_PATH}" \
     && mkdir -p "${SRC_PATH}" "${SONAR_USER_HOME}" "${SONAR_USER_HOME}/cache" "${SCANNER_WORKDIR_PATH}" \
        "${POETRY_CACHE_DIR}" "${POETRY_VIRTUALENVS_PATH}" \
-    && chown -R scanner-cli:scanner-cli "${SONAR_SCANNER_HOME}" "${SRC_PATH}" "${SCANNER_WORKDIR_PATH}" \
+    && chown -R 1000:1000 "${SONAR_SCANNER_HOME}" "${SRC_PATH}" "${SCANNER_WORKDIR_PATH}" \
        "${POETRY_CACHE_DIR}" "${POETRY_VIRTUALENVS_PATH}" \
     && chmod -R 555 "${SONAR_SCANNER_HOME}" \
     && chmod -R 754 "${SRC_PATH}" "${SONAR_USER_HOME}" "${SCANNER_WORKDIR_PATH}" \
        "${POETRY_CACHE_DIR}" "${POETRY_VIRTUALENVS_PATH}"
 
-COPY --chown=scanner-cli:scanner-cli bin /usr/bin/
+COPY --chown=1000:1000 bin /usr/bin/
 
-USER scanner-cli
+USER 1000
 
 WORKDIR ${SRC_PATH}
 
