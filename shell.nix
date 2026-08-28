@@ -6,7 +6,6 @@ mkShell {
     curl
     jq
     perl
-    pup # Parsing HTML at the command line: https://github.com/ericchiang/pup
   ];
 
   shellHook = ''

@@ -24,7 +24,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install --yes curl jq perl pup
+          sudo apt-get install --yes curl jq perl
 
       - name: Docker Hub login
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0

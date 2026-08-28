@@ -88,7 +88,8 @@ echo "latest sonarqube-sonarscanner version is $latest_sonarqube_sonarscanner_ve
 echo ""
 echo "============================="
 echo "retrieving active dotnet sdk versions"
-if ! active_dotnet_versions="$(curl -s https://dotnet.microsoft.com/download/dotnet | pup '#supported-versions-table table tr' | tr '\n' ' ' | tr '\r' ' ' | sed 's/<\/tr>/<\/tr>\n/g' | grep -v 'preview' | pup 'text{}' | grep -o '\.NET [0-9.]*' | awk '{print $2}' | awk NF | sort -Vu)"; then
+# source: https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/releases-index.json
+if ! active_dotnet_versions="$(curl -fsS 'https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/releases-index.json' | jq -r '."releases-index"[] | select(."support-phase" == "active" or ."support-phase" == "maintenance") | ."channel-version"' | sort -Vu)"; then
   fail "retrieving active dotnet sdk versions failed"
 fi
 mapfile -t active_dotnet_versions_array <<< "$active_dotnet_versions"
