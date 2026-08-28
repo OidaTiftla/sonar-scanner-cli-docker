@@ -1,0 +1,48 @@
+name: Test SonarScanner Image
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test:
+    name: Build and test image
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Configure master registry cache
+        if: github.event_name == 'push' && vars.GHCR_IMAGE != ''
+        run: |
+          echo "GHCR_CACHE_IMAGE=${{ vars.GHCR_IMAGE }}" >> "$GITHUB_ENV"
+          echo "GHCR_CACHE_TAG=buildcache-master" >> "$GITHUB_ENV"
+
+      - name: Configure pull request registry cache
+        if: github.event_name == 'pull_request' && vars.GHCR_IMAGE != '' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          echo "GHCR_CACHE_IMAGE=${{ vars.GHCR_IMAGE }}" >> "$GITHUB_ENV"
+          echo "GHCR_CACHE_TAG=buildcache-pr-${{ github.event.pull_request.number }}" >> "$GITHUB_ENV"
+          echo "GHCR_CACHE_FALLBACK_TAG=buildcache-master" >> "$GITHUB_ENV"
+
+      - name: GitHub Container Registry login
+        if: vars.GHCR_IMAGE != '' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Buildx builder
+        run: docker buildx create --driver docker-container --use
+
+      - name: Build image
+        env:
+          DOCKER_IMAGE: sonarscanner-cli-docker-hub
+          GHCR_IMAGE: sonarscanner-cli-ghcr
+        run: ./docker-sonarscanner-builder.sh --no-push

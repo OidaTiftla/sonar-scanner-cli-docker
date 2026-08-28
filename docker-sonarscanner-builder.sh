@@ -6,6 +6,19 @@ fail() {
   exit 1
 }
 
+no_push=0
+if [ "$#" -gt 0 ]; then
+  [ "$#" -eq 1 ] && [ "$1" = "--no-push" ] || fail "Usage: $0 [--no-push]"
+  no_push=1
+fi
+
+cache_image="${GHCR_CACHE_IMAGE:-}"
+if [ -z "$cache_image" ] && [ "$no_push" -eq 0 ]; then
+  cache_image="${GHCR_IMAGE:-}"
+fi
+cache_tag="${GHCR_CACHE_TAG:-buildcache}"
+cache_fallback_tag="${GHCR_CACHE_FALLBACK_TAG:-}"
+
 declare -a docker_images
 for image in "${GHCR_IMAGE:-}" "${DOCKER_IMAGE:-}"; do
   [ -n "$image" ] && docker_images+=("$image")
@@ -17,6 +30,10 @@ primary_docker_image="${docker_images[0]}"
 
 declare -a docker_cache_args
 
+registry_cache_ref() {
+  printf '%s:%s-net%s' "$cache_image" "$1" "$2"
+}
+
 publish_tags() {
   local source_tag="$1"
   local image tag
@@ -27,7 +44,9 @@ publish_tags() {
       if [ "$image" != "$primary_docker_image" ] || [ "$tag" != "$source_tag" ]; then
         docker tag "${primary_docker_image}:${source_tag}" "${image}:${tag}" || return 1
       fi
-      docker push "${image}:${tag}" || return 1
+      if [ "$no_push" -eq 0 ]; then
+        docker push "${image}:${tag}" || return 1
+      fi
     done
   done
 }
@@ -138,12 +157,16 @@ for dotnet_version in "${active_dotnet_versions_array[@]}"; do
     "${current_dotnet_sonarscanner_version_major}-for-dotnet-net${dotnet_version}"
   )
   docker_cache_args=()
-  if [ -n "${GHCR_IMAGE:-}" ]; then
-    ghcr_cache_image="${GHCR_IMAGE}:buildcache-net${dotnet_version}"
+  if [ -n "$cache_image" ]; then
+    registry_cache_image="$(registry_cache_ref "$cache_tag" "$dotnet_version")"
     docker_cache_args=(
-      --cache-from "type=registry,ref=${ghcr_cache_image}"
-      --cache-to "type=registry,ref=${ghcr_cache_image},mode=max"
+      --cache-from "type=registry,ref=${registry_cache_image}"
+      --cache-to "type=registry,ref=${registry_cache_image},mode=max"
     )
+    if [ -n "$cache_fallback_tag" ]; then
+      registry_cache_fallback_image="$(registry_cache_ref "$cache_fallback_tag" "$dotnet_version")"
+      docker_cache_args+=(--cache-from "type=registry,ref=${registry_cache_fallback_image}")
+    fi
   fi
   if ! (
     docker buildx build --load --pull --platform linux/amd64 \
@@ -161,13 +184,21 @@ for dotnet_version in "${active_dotnet_versions_array[@]}"; do
   fi
 done
 if [ -z "$latest_dotnet_version" ]; then
-  fail "no latest can be pushed"
+  if [ "$no_push" -eq 1 ]; then
+    fail "no images were built"
+  else
+    fail "no images were built (therefore no latest can be pushed)"
+  fi
 fi
 echo ""
 echo "============================="
-echo "push latest ..."
+if [ "$no_push" -eq 1 ]; then
+  echo "tag latest ..."
+else
+  echo "push latest ..."
+fi
 if ! publish_tags "net${latest_dotnet_version}" latest; then
-  fail "push latest failed"
+  fail "tag and publish latest failed"
 fi
 if [ "$any_failed" -ge 1 ]; then
   fail "at least one build failed"

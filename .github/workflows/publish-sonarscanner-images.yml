@@ -49,4 +49,5 @@ jobs:
         env:
           DOCKER_IMAGE: ${{ vars.DOCKER_IMAGE }}
           GHCR_IMAGE: ${{ vars.GHCR_IMAGE }}
+          GHCR_CACHE_TAG: buildcache-master
         run: ./docker-sonarscanner-builder.sh
